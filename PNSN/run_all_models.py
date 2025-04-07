@@ -1,12 +1,58 @@
-#!/home/ahutko/miniconda3/envs/surface_dl/bin/python
+#!/usr/bin/env python
+
+"""
+Run Seismic Event Classifier
+
+This script classifies seismic events using multiple deep learning and machine learning models.
+It downloads waveform data from IRIS, processes it, and runs it through classification models
+to determine the probability of different event types (earthquake, explosion, noise, or surface event).
+
+The script takes an event ID (evid) as input and produces both console output and a text file
+containing probability values and classification statistics for each model.
+
+Event types:
+- EQ: Earthquake
+- EX: Explosion
+- NO: Noise
+- SU: Surface event (e.g., quarry blast, mining activity)
+
+Models used:
+- SeismicCNN_1d: 1D Convolutional Neural Network for seismic classification
+- SeismicCNN_2d: 2D Convolutional Neural Network for seismic classification
+- QuakeXNet_1d: 1D implementation of QuakeXNet architecture
+- QuakeXNet_2d: 2D implementation of QuakeXNet architecture
+- ML40sec: Traditional machine learning model using 40-second windows
+
+Usage:
+    python script_name.py evid
+
+    where:
+        evid: Valid integer event ID in the database
+
+Output:
+    - Console output of processing status and probabilities
+    - Text file in RESULTS directory with detailed model outputs and statistics
+
+Author: Alex Hutko
+Last Modified: Apr 7, 2025
+"""
 
 # import std packages
 import os
 import sys
 import random
 from time import time
+import logging  # Added for better error handling
+from typing import List, Tuple, Optional, Dict, Any  # Added type hints
 
 Timport = time()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 import warnings # to silence the torch.load warning
 import numpy as np
@@ -28,7 +74,7 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, TensorDataset, random_split
 import torchvision.transforms as transforms
 
-import warnings
+# Suppress specific warnings
 warnings.filterwarnings(
     "ignore",
     message="AutoDateLocator was unable to pick an appropriate interval"
@@ -63,23 +109,30 @@ from all_models_classification import (
     compute_window_probs, plot_single_model_probs, plot_all_model_probs
 )
 
-#----- get evid from input arguments
+# Check command line arguments and provide usage information
 try:
     evid = sys.argv[1]
-#    model = sys.argv[2]
-except:
-    print("Usage: thisscript.py evid") # [40, 110, 150 or 20]")
-    print("evid must be a valid int event_id") #and model abbreviation")
+except IndexError:
+    logger.error("Missing required event ID argument")
+    print("Usage: thisscript.py evid")
+    print("evid must be a valid int event_id")
     sys.exit(1)
 
 # ====================
 # 0. Parameters
 # ====================
 
-outfile = "RESULTS/" + str(evid)+"_output.txt"
-#if os.path.exists(outfile):
-#    sys.exit("File already exists; exiting.")
-f = open(outfile,"a")
+# Output file configuration
+results_dir = "RESULTS"
+os.makedirs(results_dir, exist_ok=True)  # Ensure the output directory exists
+outfile = os.path.join(results_dir, f"{evid}_output.txt")
+
+# Open output file in append mode
+try:
+    f = open(outfile, "a")
+except IOError as e:
+    logger.error(f"Error opening output file: {e}")
+    sys.exit(f"Error opening output file: {e}")
 
 # Set device to GPU if available, else use CPU
 device = "cpu"     #torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -94,13 +147,23 @@ window_length = 100  # Length of the window for processing in samples
 channel_patterns = ["HH", "BH", "EH", "HN", "EN"]  # Channel patterns to filter
 trace_window_length = 200  # Total length of data downloaded
 
-# Get params from evid
-orid, ordate, lat, lon, dep, mag, mindist, maxdist, netstas, dists_km, analyst_class = get_event_info(evid)
-event_info = [ evid, orid, ordate, lat, lon, dep, mag, mindist, maxdist, netstas, dists_km, analyst_class ]
+# Get event parameters from database using evid
+try:
+    orid, ordate, lat, lon, dep, mag, mindist, maxdist, netstas, dists_km, analyst_class = get_event_info(evid)
+    event_info = [evid, orid, ordate, lat, lon, dep, mag, mindist, maxdist, netstas, dists_km, analyst_class]
+except Exception as e:
+    logger.error(f"Error retrieving event information: {e}")
+    f.close()
+    sys.exit(f"Error retrieving event information: {e}")
+
+# Display event information
 print('')
 print("-------------- ", evid, " --------------")
 print("EVENT INFO evid, orid, ordate, lat, lon, dep, mag, mindist, maxdist, netstas, dists_km, analyst_class: ")
 print(evid, orid, ordate, lat, lon, dep, mag, mindist, maxdist, netstas, dists_km, analyst_class)
+
+# Calculate time window for data retrieval
+# Start 20 seconds before origin time plus buffer for window processing
 start_time = UTCDateTime(ordate) - 20. - (window_length/2.) - (stride/orig_sr)
 dists_km = [round(x*10)/10. for x in dists_km]
 mindist = min(dists_km)
@@ -147,14 +210,20 @@ def process_model(model, stations_id, dists_km, location, start_time, end_time, 
     """
     if st_all is None or not remember_st:
         st_all = Stream()
-    return compute_window_probs(
-        stations_id=stations_id, dists_km=dists_km, st_all=st_all, location=location, start_time=start_time,
-        end_time=end_time, channel_patterns=channel_patterns, client=client,
-        stride=stride, orig_sr=orig_sr, new_sr=new_sr, window_length=window_length,
-        lowpass=lowpass, highpass=highpass, one_d=one_d, model=model,
-        model_type=model_type, filename=filename, remember_st = remember_st, 
-        integrate_SM = integrate_SM
-    )
+        
+    try:
+        return compute_window_probs(
+            stations_id=stations_id, dists_km=dists_km, st_all=st_all, location=location, start_time=start_time,
+            end_time=end_time, channel_patterns=channel_patterns, client=client,
+            stride=stride, orig_sr=orig_sr, new_sr=new_sr, window_length=window_length,
+            lowpass=lowpass, highpass=highpass, one_d=one_d, model=model,
+            model_type=model_type, filename=filename, remember_st=remember_st, 
+            integrate_SM=integrate_SM
+        )
+    except Exception as e:
+        logger.error(f"Error processing model {model_type}: {e}")
+        # Return empty results but don't crash the entire script
+        return [], None, stations_id, st_all, []
 
 #----- Loading the machine learning models
 # ====================
@@ -178,10 +247,30 @@ model_QuakeXNet_2d = QuakeXNet_2d(num_classes=4, num_channels=num_channels, drop
 # ============================
 # Load the pretrained model state dictionaries from saved files
 warnings.filterwarnings("ignore", message="You are using `torch.load` with `weights_only=False`", category=FutureWarning)
-saved_model_SeismicCNN_2d = torch.load('../trained_deep_learning_models/best_model_SeismicCNN_2d.pth', map_location=device)
-saved_model_QuakeXNet_2d = torch.load('../trained_deep_learning_models/best_model_QuakeXNet_2d.pth', map_location=device)
-saved_model_QuakeXNet_1d = torch.load('../trained_deep_learning_models/best_model_QuakeXNet_1d.pth', map_location=device)
-saved_model_SeismicCNN_1d = torch.load('../trained_deep_learning_models/best_model_SeismicCNN_1d.pth', map_location=device)
+
+# Define model paths
+model_dir = '../trained_deep_learning_models'
+models_paths = {
+    'SeismicCNN_1d': os.path.join(model_dir, 'best_model_SeismicCNN_1d.pth'),
+    'SeismicCNN_2d': os.path.join(model_dir, 'best_model_SeismicCNN_2d.pth'),
+    'QuakeXNet_1d': os.path.join(model_dir, 'best_model_QuakeXNet_1d.pth'),
+    'QuakeXNet_2d': os.path.join(model_dir, 'best_model_QuakeXNet_2d.pth')
+}
+
+# Load model weights with error handling
+try:
+    saved_model_SeismicCNN_2d = torch.load(models_paths['SeismicCNN_2d'], map_location=device)
+    saved_model_QuakeXNet_2d = torch.load(models_paths['QuakeXNet_2d'], map_location=device)
+    saved_model_QuakeXNet_1d = torch.load(models_paths['QuakeXNet_1d'], map_location=device)
+    saved_model_SeismicCNN_1d = torch.load(models_paths['SeismicCNN_1d'], map_location=device)
+except FileNotFoundError as e:
+    logger.error(f"Model file not found: {e}")
+    f.close()
+    sys.exit(f"Model file not found: {e}")
+except Exception as e:
+    logger.error(f"Error loading model weights: {e}")
+    f.close()
+    sys.exit(f"Error loading model weights: {e}")
 
 # ============================
 # 4. Load Weights into Models
@@ -266,26 +355,38 @@ print('')
 
 def print_stats(probs, name, evid, snrs, analyst_class, mag):
     """
-    For the event classes EQ, EX, and SU, calculate and print:
+    Calculate and print statistics for the event classification probabilities.
+    
+    For the event classes EQ (earthquake), EX (explosion), and SU (surface event),
+    calculate and print:
       - The overall mean probability of each event class.
       - The mean probability for each event class, computed over only those stations
         where the maximum probability for that station is greater than a threshold
         AND the probability distance (difference between the top two probabilities)
         is greater than a given threshold.
         
-    The output name for each combination is formatted as:
-         myname_p<probthreshold>_d<probdistance>
-    with the threshold values printed to one decimal place.
-    
     Parameters:
-      probs (array-like): Probability values that can be reshaped to 
-                          (number_of_stations, n_windows, 4).
-      name (str): Base name (e.g., "myname").
+    -----------
+    probs : array-like
+        Probability values that can be reshaped to (number_of_stations, n_windows, 4).
+        The 4 classes are: [EQ, EX, NO, SU] (Earthquake, Explosion, Noise, Surface)
+    name : str
+        Base name of the model (e.g., "SeismicCNN_1d")
+    evid : str
+        Event ID being processed
+    snrs : array-like
+        Signal-to-noise ratios for each station
+    analyst_class : str
+        Analyst classification of the event (ground truth if available)
+    mag : str or float
+        Magnitude of the event
     """
     # Convert probabilities to a NumPy array and reshape.
     probs = np.array(probs)
     nstations = len(big_station_ids)  # Ensure big_station_ids is defined globally
     probs = probs.reshape(nstations, -1, 4)
+    
+    # Handle potential missing values for analyst_class and mag
     try:
         if len(analyst_class) == 2:
             pass
@@ -329,9 +430,9 @@ def print_stats(probs, name, evid, snrs, analyst_class, mag):
     overall_ex = np.mean(exprobs)
     overall_su = np.mean(suprobs)
     overall_snr = np.mean(snrs)
-    #print(f"{str(evid):<10s}  {name:20s} Overall: EQ: {overall_eq:5.3f}  EX: {overall_ex:5.3f}  SU: {overall_su:5.3f}  SNR: {overall_snr:6.1f}")
+    
     composite_name = f"{name}_mean_all"
-    overall_means = [ overall_eq, overall_ex, overall_su ]
+    overall_means = [overall_eq, overall_ex, overall_su]
     sorted_means = sorted(overall_means, reverse=True)
     mean_pd = sorted_means[0] - sorted_means[1]
     event_classes = ['EQ', 'EX', 'SU']
@@ -343,9 +444,9 @@ def print_stats(probs, name, evid, snrs, analyst_class, mag):
     f.write(output_line + "\n")  
  
     # Loop over the desired probability thresholds, probability distance thresholds, and SNR thresholds.
-    for probthreshold in [ 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97, 0.98, 0.99 ]:
-        for probdistance in [ 0.0, 0.02, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5 ]:
-            for snrthreshold in [ 0, 1, 2, 3, 4, 10 ]:
+    for probthreshold in [0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97, 0.98, 0.99]:
+        for probdistance in [0.0, 0.02, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5]:
+            for snrthreshold in [0, 1, 2, 3, 4, 10]:
                 # Create separate masks for each event class:
                 eq_mask = (eqprobs > probthreshold) & (pdistances > probdistance) & (snrs > snrthreshold)
                 ex_mask = (exprobs > probthreshold) & (pdistances > probdistance) & (snrs > snrthreshold)
@@ -377,14 +478,13 @@ def print_stats(probs, name, evid, snrs, analyst_class, mag):
                     max_class = 'NO'
                 
                 # Create the composite name including SNR threshold and left-justify in a 25-character field.
-                #   e.g.: SeismicCNN_1d_p0.30_d0.05_snr10
                 composite_name = f"{name}_p{probthreshold:.2f}_d{probdistance:.2f}_snr{snrthreshold:02d}"
-                # Print the event id (evid), composite name, the means, counts, probability distance, and predicted class.
+                
+                # Print the event id, composite name, the means, counts, probability distance, and predicted class.
                 output_line = (f"{str(evid):<10s} {composite_name:<32s}    EQ: {mean_eq:5.3f}  {count_eq:<3d}  "
                     f"EX: {mean_ex:5.3f}  {count_ex:<3d}  SU: {mean_su:5.3f}  {count_su:<3d}    "
                     f"ProbDist: {mean_pd:5.3f}    Pred: {max_class}  {sorted_means[0]:5.3f}  {pred_count:<3d}  "
                     f"Analyst: {analyst_class}  Mag: {mag}")
-                #print(output_line)
                 f.write(output_line + "\n")
 
 
@@ -411,25 +511,36 @@ def process_model_probs(model_probs, model_name, evid, snrs, big_station_ids, f,
     mag : optional
         Magnitude information
     """
-    prob_stns = np.array(model_probs)
-    prob_stns = prob_stns.reshape(len(big_station_ids), -1, 4)
-    
-    for k in range(len(prob_stns)):
-        eqprob = np.max(prob_stns[k][:,0])
-        exprob = np.max(prob_stns[k][:,1])
-        noprob = np.max(prob_stns[k][:,2])
-        suprob = np.max(prob_stns[k][:,3])
+    # Skip processing if model_probs is empty (indicates error in processing)
+    if len(model_probs) == 0:
+        logger.warning(f"No probability data available for model {model_name}")
+        print(f"WARNING: No probability data available for model {model_name}")
+        return
         
-        pvals = [eqprob, exprob, suprob]
-        sorted_pvals = sorted(pvals, reverse=True)
-        pdistance = sorted_pvals[0] - sorted_pvals[1]  # Calculated but not used
+    try:
+        prob_stns = np.array(model_probs)
+        prob_stns = prob_stns.reshape(len(big_station_ids), -1, 4)
         
-        output_line = f"PROBS: {evid} {model_name:<15s} {k:2d} {eqprob:.7f} {exprob:.7f} {noprob:.7f} {suprob:.7f} {snrs[k]:7.2f}  {big_station_ids[k]} "
-        print(output_line)
-        f.write(output_line + "\n")
-    
-    print_stats(model_probs, model_name, evid, snrs, analyst_class, mag)
-    print('')
+        for k in range(len(prob_stns)):
+            eqprob = np.max(prob_stns[k][:,0])
+            exprob = np.max(prob_stns[k][:,1])
+            noprob = np.max(prob_stns[k][:,2])
+            suprob = np.max(prob_stns[k][:,3])
+            
+            pvals = [eqprob, exprob, suprob]
+            sorted_pvals = sorted(pvals, reverse=True)
+            pdistance = sorted_pvals[0] - sorted_pvals[1]  # Calculated but not used
+            
+            output_line = f"PROBS: {evid} {model_name:<15s} {k:2d} {eqprob:.7f} {exprob:.7f} {noprob:.7f} {suprob:.7f} {snrs[k]:7.2f}  {big_station_ids[k]} "
+            print(output_line)
+            f.write(output_line + "\n")
+        
+        print_stats(model_probs, model_name, evid, snrs, analyst_class, mag)
+        print('')
+    except Exception as e:
+        logger.error(f"Error processing model {model_name} probabilities: {e}")
+        print(f"ERROR processing model {model_name}: {e}")
+
 
 # Define models and their display names
 models_and_names = [
@@ -444,7 +555,11 @@ models_and_names = [
 for model_probs, model_name in models_and_names:
     process_model_probs(model_probs, model_name, evid, snrs, big_station_ids, f, analyst_class, mag)
 
+# Close the output file
 f.close()
-Tzero = time()
-print("TOTAL ELAPSED TIME: ",(Tzero - Timport))
+
+# Print total elapsed time
+total_time = time() - Timport
+print("TOTAL ELAPSED TIME: ", total_time)
+logger.info(f"Processing completed for event {evid}, total time: {total_time:.2f} seconds")
 
