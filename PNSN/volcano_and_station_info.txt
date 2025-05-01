@@ -1,0 +1,145 @@
+
+# This is based on 3333 SU events that have been (F)inalized in Jiggle by PNSN's lead analyst.
+#     with over 20 years experience 2017-12-18 to 2025-03-31.
+#
+# psql query:
+#select n.magnitude, n.magtype, e.evid, e.etype, o.gtype, o.rflag, e.selectflag, to_timestamp(o.datetime) from event e inner join origin o on e.prefor = o.orid inner join netmag n on e.prefmag = n.magid inner join credit c on c.id = o.orid  where o.gtype = 'l' and e.selectflag = 1 and c.tname = 'ORIGIN' and c.refer = 'amyw' and e.etype in ('su') and o.rflag = 'F' and n.magtype != 'h' order by o.datetime desc limit 3333;
+#      magnitude      | magtype |   evid   | etype | gtype | rflag | selectflag |         to_timestamp
+#---------------------+---------+----------+-------+-------+-------+------------+-------------------------------
+#                1.55 | l       | 62073727 | su    | l     | F     |          1 | 2025-03-15 14:10:11.02-07
+#                0.52 | l       | 62080401 | su    | l     | F     |          1 | 2025-03-11 05:43:42.7-07
+#                1.52 | l       | 62067067 | su    | l     | F     |          1 | 2025-02-12 02:11:19.209999-08
+#                0.31 | l       | 62066792 | su    | l     | F     |          1 | 2025-02-10 06:42:46.9-08
+
+
+# Volcano locations
+volcano_location['sister'] = [ 44.104, -121.770 ]
+volcano_location['newberry'] = [ 43.725, -121.234 ]
+volcano_location['hood'] = [ 45.37, -121.69 ]
+volcano_location['helens'] = [ 46.20, -122.19 ]
+volcano_location['baker'] = [ 48.77, -121.82  ]
+volcano_location['rainier'] = [ 46.85, -121.76  ]
+
+# Volcano stations that have the most historical SU picks
+volcano_stations['sisters'] = [ 'MOON', 'WIFE', 'HUSB', 'PRLK', 'TCBU' ]
+volcano_stations['newberry'] = [ 'CIHL', 'CPCO', 'KWBU', 'NORM', 'SVIC', 'SWNB', 'TMBU', 'NCO', 'NN19', 'NN21', 'ASBU' ] 
+volcano_stations['hood'] = [ 'BRSP', 'LSON', 'PALM', 'TIMB', 'YOCR', 'HOOD', 'TDH' ]
+volcano_stations['helens'] = [ 'LOO', 'REM', 'SEP', 'STD', 'SUG', 'SWF2', 'USFR', 'EDM', 'HSR', 'SHW' ]
+volcano_stations['baker'] = [ 'SHUK', 'MBW2', 'VDEB', 'BHAM', 'DONK', 'JCW', 'MULN', 'PASS', 'RPW2', 'SAXON'  ]
+volcano_stations['rainier'] = [ 'RCM', 'RCS', 'RER', 'STAR', 'OBSR', 'PANH', 'SIFT', 'MILD', 'PARA', 'SIFT', 'PR05', 'COPP', 'FMW', 'RUSH', 'LON', 'ARAT' ]
+
+ARAT,ASBU,BRSP,CARB,CIHL,COPP,CPCO,CRBN,GNOB,HIYU,HOA,HUSB,JRO,KWBU,KWBU,LOO,LSON,MILD,NORM,OBSR,OPCH,PALM,PALM,PANH,PARA,PR05,PRLK,REM,RUSH,SEP,SEP,SHRK,SIFT,STD,STD,SUG,SUG,SVIC,SVIC,SWF2,SWNB,TABR,TAVI,TCBU,TIMB,TIMB,TMBU,UNFR,USFR,VALT,VOIT,WIFE,WOW,YOCR,VDEB,PINE,PINE,BERY,BHAM,CDF,DONK,EDM,EDM,ETW,FL2,FMW,FMW,GPW,GPW,HANS,HDW,HOOD,HSR,HSR,JCW,JUN,LO2,LON,LON,MBW,MBW2,MOON,MULN,NCO,NCO,NN19,NN21,OLGA,PASS,RCM,RCS,RER,RER,RPW2,RVC,SAXON,SHUK,SHW,SHW,SLF,SOS,STAR,STAR,TDH,TDH,TDL,TURTL,TWISP,VLL,WRW
+
+# Stations sorted by number of SU picks 
+     49 UW.SHUK..HHE
+     48 UW.SAXON..HHE
+     47 UW.RPW2..HHE
+     42 UW.RCS..EHZ
+     36 UW.NN19.01.EHE
+     34 UW.MULN..HHE
+     33 CC.OBSR..BHE
+     32 CC.NORM..BHE
+     31 UW.RCM..HHE
+     31 UW.NN21.01.EHE
+     28 UW.RER..EHZ
+     26 UW.STAR.01.EHE
+     26 UW.MBW2..HHE
+     25 CC.CPCO..BHE
+     24 UW.PASS..HHE
+     23 CC.SWF2..BHE
+     21 CC.VALT..BHE
+     19 CC.SEP..BHE
+     17 CC.REM..BHE
+     17 CC.PANH..BHE
+     16 CC.SUG..BHE
+     15 UW.JCW..ENE
+     15 CC.PR05..BHE
+     14 CC.SVIC..BHE
+     14 CC.KWBU..BHE
+     13 UW.HSR..EHZ
+     13 CC.SIFT..BHE
+     12 CC.PALM..BHE
+     11 UW.LO2..EHZ
+     11 CN.VDEB..HHE
+     11 CC.SEP..EHE
+     10 CC.YOCR..BHE
+      9 UW.MBW.01.EHZ
+      9 CC.SUG..EHE
+      9 CC.STD..BHE
+      9 CC.PARA..BHE
+      9 CC.LSON..BHE
+      9 CC.CIHL..BHE
+      9 CC.BRSP..BHE
+      7 UW.SHW..HHE
+      7 UW.LON..HHE
+      7 UW.FMW..HHE
+      7 UW.DONK..HHE
+      7 UW.BHAM..HHE
+      7 CC.MILD..BHE
+      6 UW.RER..HHE
+      6 UW.HSR..HHE
+      6 UW.EDM..EHZ
+      6 CC.RUSH..BHE
+      6 CC.LOO..BHE
+      5 UW.SHW..EHZ
+      5 UW.NCO..HHE
+      5 CC.STD.01.BHE
+      4 UW.VLL..EHZ
+      4 UW.TDH..EHZ
+      4 UW.RVC..EHZ
+      4 UW.NCO..EHZ
+      4 CC.USFR..BHE
+      4 CC.TIMB..BHE
+      4 CC.COPP..BHE
+      4 CC.ASBU..BHE
+      4 CC.ARAT..BHE
+      3 UW.TWISP..HHE
+      3 UW.STAR..EHE
+      3 UW.HOOD..HHE
+      3 UW.FL2..EHZ
+      3 UW.EDM..HHE
+      3 UW.BERY..HHE
+      3 UO.PINE..HHE
+      3 CC.WIFE..BHE
+      3 CC.TMBU..BHE
+      3 CC.TAVI..BHE
+      3 CC.SWNB..BHE
+      3 CC.SHRK..BHE
+      3 CC.HUSB..BHE
+      3 CC.HOA..BHE
+      2 UW.TDL..EHZ
+      2 UW.SOS..EHZ
+      2 UW.LON..BHE
+      2 UW.GPW..HHE
+      2 UW.GPW.01.EHZ
+      2 CC.UNFR..BHE
+      2 CC.TIMB..EHE
+      2 CC.TCBU..BHE
+      2 CC.PRLK..BHE
+      2 CC.PALM..EHE
+      2 CC.KWBU..EHE
+      2 CC.HIYU..BHE
+      2 CC.GNOB..BHE
+      1 UW.WRW..HHE
+      1 UW.TURTL..HHE
+      1 UW.TDH..HHE
+      1 UW.SLF..HHE
+      1 UW.OLGA..HHE
+      1 UW.MOON..HHE
+      1 UW.JUN..EHZ
+      1 UW.HDW..HHE
+      1 UW.HANS..HHE
+      1 UW.FMW..EHZ
+      1 UW.ETW..HHE
+      1 UW.CDF..EHZ
+      1 UO.PINE..BHE
+      1 CC.WOW..BHE
+      1 CC.VOIT..BHE
+      1 CC.TABR..BHE
+      1 CC.SVIC..EHE
+      1 CC.OPCH..BHE
+      1 CC.JRO..HHE
+      1 CC.CRBN..BHE
+      1 CC.CARB..BHE
+
+

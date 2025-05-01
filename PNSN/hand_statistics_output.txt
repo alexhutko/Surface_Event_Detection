@@ -1,0 +1,56 @@
+Model considered: SeismicCNN_2d
+
+Records processed: 9983
+Overall accuracy: 0.9510
+
+EQ
+ (n=3327)
+Event level:
+  Precision = 0.9559 (3167/3313)
+  Recall    = 0.9519 (3167/3327)
+  F1 score  = 0.9539
+  Accuracy = 0.9519
+Trace level:
+  Precision = 0.8685 (24964/28745)
+  Recall    = 0.8644 (24964/28881)
+  F1 score  = 0.8664
+  Accuracy = 0.8574
+  Ntraces for eq labeled dataset:  29116  Ntraces predicted as eq event-level:  28881  Ntraces predicted as eq trace-level:  28789
+  nTruePositive: 24964  nFalsePositive: 3781  nFalseNegative: 3917
+
+
+EX
+ (n=3323)
+Event level:
+  Precision = 0.9767 (3097/3171)
+  Recall    = 0.9320 (3097/3323)
+  F1 score  = 0.9538
+  Accuracy = 0.9320
+Trace level:
+  Precision = 0.8556 (18194/21265)
+  Recall    = 0.7940 (18194/22915)
+  F1 score  = 0.8236
+  Accuracy = 0.7593
+  Ntraces for ex labeled dataset:  23961  Ntraces predicted as ex event-level:  22914  Ntraces predicted as ex trace-level:  21274
+  nTruePositive: 18194  nFalsePositive: 3071  nFalseNegative: 4721
+
+
+SU
+ (n=3331)
+Event level:
+  Precision = 0.9236 (3230/3497)
+  Recall    = 0.9697 (3230/3331)
+  F1 score  = 0.9461
+  Accuracy = 0.9697
+Trace level:
+  Precision = 0.8046 (24980/31046)
+  Recall    = 0.8537 (24980/29260)
+  F1 score  = 0.8284
+  Accuracy = 0.8910
+  Ntraces for su labeled dataset:  28037  Ntraces predicted as su event-level:  29256  Ntraces predicted as su trace-level:  31051
+  nTruePositive: 24980  nFalsePositive: 6066  nFalseNegative: 4280
+
+
+Average traces per event type.  EQ:  6.990332904080395   EX:  5.763618506715736   SU:  6.719727605535632
+Median traces per event type.  EQ:  9.0   EX:  6.0   SU:  8.0
+

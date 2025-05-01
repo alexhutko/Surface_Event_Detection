@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/home/ahutko/miniconda3/envs/surface_dl/bin/python
 
 """
 Run Seismic Event Classifier
@@ -44,6 +44,22 @@ import random
 from time import time
 import logging  # Added for better error handling
 from typing import List, Tuple, Optional, Dict, Any  # Added type hints
+
+# Check command line arguments and provide usage information
+try:
+    evid = sys.argv[1]
+except IndexError:
+    logger.error("Missing required event ID argument")
+    print("Usage: thisscript.py evid")
+    print("evid must be a valid int event_id")
+    sys.exit(1)
+
+# Output file configuration and quick check
+results_dir = "RESULTS_SU2"
+os.makedirs(results_dir, exist_ok=True)  # Ensure the output directory exists
+outfile = os.path.join(results_dir, f"{evid}_output.txt")
+if os.path.exists(outfile):
+    sys.exit("File already exists; exiting.")
 
 Timport = time()
 
@@ -91,6 +107,7 @@ from utils import apply_cosine_taper, butterworth_filter, resample_array
 from neural_network_architectures import (
     QuakeXNet_1d, QuakeXNet_2d, SeismicCNN_1d, SeismicCNN_2d
 )
+from get_volcano_stations import get_volcano_stations
 
 print("DONE IMPORTING.  Elapsed time: ",time()-Timport)
 Tzero = time()
@@ -98,34 +115,19 @@ Tzero = time()
 # import third party packages
 from obspy.clients.fdsn import Client
 client = Client('IRIS')
-import obspy
 
 # import event classifier specific packges
-from db.get_event_info import unix_to_true_time
-from db.get_event_info import get_event_info
+from db.get_event_info2 import unix_to_true_time
+from db.get_event_info2 import get_event_info
 
 # Import classification functions
 from all_models_classification import (
     compute_window_probs, plot_single_model_probs, plot_all_model_probs
 )
 
-# Check command line arguments and provide usage information
-try:
-    evid = sys.argv[1]
-except IndexError:
-    logger.error("Missing required event ID argument")
-    print("Usage: thisscript.py evid")
-    print("evid must be a valid int event_id")
-    sys.exit(1)
-
 # ====================
 # 0. Parameters
 # ====================
-
-# Output file configuration
-results_dir = "RESULTS"
-os.makedirs(results_dir, exist_ok=True)  # Ensure the output directory exists
-outfile = os.path.join(results_dir, f"{evid}_output.txt")
 
 # Open output file in append mode
 try:
@@ -140,17 +142,22 @@ device = "cpu"     #torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # Define parameters for signal processing
 orig_sr = 100  # Original sampling rate in Hz
 new_sr = 50    # New sampling rate in Hz
-stride = 10 * orig_sr  # Window moving increment for processing windows (X seconds times original sampling rate)
+stride = 5 * orig_sr  # Window moving increment for processing windows (X seconds times original sampling rate)
 lowpass = 1  # Lowpass filter cutoff frequency in Hz
 highpass = 20  # Highpass filter cutoff frequency in Hz
 window_length = 100  # Length of the window for processing in samples
 channel_patterns = ["HH", "BH", "EH", "HN", "EN"]  # Channel patterns to filter
-trace_window_length = 200  # Total length of data downloaded
+trace_window_length = 100.  + 30. + 11.  # Total length of data downloaded (100 sec analysis window, 30 before P, 6 after P.  Note: DL models were trained w windows starting from -20 to -5 sec relative to the P pick time.
 
 # Get event parameters from database using evid
 try:
     orid, ordate, lat, lon, dep, mag, mindist, maxdist, netstas, dists_km, analyst_class = get_event_info(evid)
     event_info = [evid, orid, ordate, lat, lon, dep, mag, mindist, maxdist, netstas, dists_km, analyst_class]
+    # Calculate time window for data retrieval
+    # Start 20 seconds before origin time plus buffer for window processing
+    start_time = UTCDateTime(ordate) - 30.  # 30 sec before P is the first analysis window
+    if analyst_class == 'su' and len(netstas) < 3:
+        netstas, dists_km = get_volcano_stations(lat, lon, netstas, start_time)
 except Exception as e:
     logger.error(f"Error retrieving event information: {e}")
     f.close()
@@ -162,9 +169,6 @@ print("-------------- ", evid, " --------------")
 print("EVENT INFO evid, orid, ordate, lat, lon, dep, mag, mindist, maxdist, netstas, dists_km, analyst_class: ")
 print(evid, orid, ordate, lat, lon, dep, mag, mindist, maxdist, netstas, dists_km, analyst_class)
 
-# Calculate time window for data retrieval
-# Start 20 seconds before origin time plus buffer for window processing
-start_time = UTCDateTime(ordate) - 20. - (window_length/2.) - (stride/orig_sr)
 dists_km = [round(x*10)/10. for x in dists_km]
 mindist = min(dists_km)
 
@@ -526,13 +530,16 @@ def process_model_probs(model_probs, model_name, evid, snrs, big_station_ids, f,
             exprob = np.max(prob_stns[k][:,1])
             noprob = np.max(prob_stns[k][:,2])
             suprob = np.max(prob_stns[k][:,3])
-            
+
             pvals = [eqprob, exprob, suprob]
             sorted_pvals = sorted(pvals, reverse=True)
             pdistance = sorted_pvals[0] - sorted_pvals[1]  # Calculated but not used
             
             output_line = f"PROBS: {evid} {model_name:<15s} {k:2d} {eqprob:.7f} {exprob:.7f} {noprob:.7f} {suprob:.7f} {snrs[k]:7.2f}  {big_station_ids[k]} "
             print(output_line)
+            #for ij in range(0,len(prob_stns[k][:,0])):
+            #    print(ij, prob_stns[k][ij,0], prob_stns[k][ij,1], prob_stns[k][ij,2], prob_stns[k][ij,3])
+
             f.write(output_line + "\n")
         
         print_stats(model_probs, model_name, evid, snrs, analyst_class, mag)
@@ -546,8 +553,8 @@ def process_model_probs(model_probs, model_name, evid, snrs, big_station_ids, f,
 models_and_names = [
     (stn_probs_SeismicCNN_1d, 'SeismicCNN_1d'),
     (stn_probs_SeismicCNN_2d, 'SeismicCNN_2d'),
-    (stn_probs_QuakeXNet_1d, 'QuakeXnet1d'),
-    (stn_probs_QuakeXNet_2d, 'QuakeXnet2d'),
+    (stn_probs_QuakeXNet_1d, 'QuakeXNet_1d'),
+    (stn_probs_QuakeXNet_2d, 'QuakeXNet_2d'),
     (stn_probs_ml_40, 'ML40sec')
 ]
 
