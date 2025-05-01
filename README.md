@@ -9,7 +9,23 @@ There are a few differences including:
 * special treatment is given for SU events that have only one station picked and no location.  The event location is assumed to be the station location.  An empirical volcano-specific station list based on stations with the most historical SU picks is used to form the list of 10 stations.
 * output are files look like:
 
-62063646_output.txt:
+# Results
+Zip file of 10k events split evenly between EQ, EX, and SU. [event_classifier_output_files_PNSN.zip](https://seismo.ess.washington.edu/~ahutko/event_classifier_output_files_PNSN.zip)
+
+The psql queries used to for the evid lists for eq, px and su events:
+```
+select n.magnitude, n.magtype, e.evid, e.etype, o.gtype, o.rflag, e.selectflag, to_timestamp(o.datetime) from event e inner join origin o on e.prefor = o.orid inner join netmag n on e.prefmag = n.magid inne
+r join credit c on c.id = o.orid  where o.gtype = 'l' and e.selectflag = 1 and c.tname = 'ORIGIN' and c.refer = 'amyw' and e.etype in ('eq') and o.rflag = 'F' order by o.datetime desc limit 3333;
+      magnitude       | magtype |   evid   | etype | gtype | rflag | selectflag |         to_timestamp          
+----------------------+---------+----------+-------+-------+-------+------------+-------------------------------
+                  0.8 | l       | 62079802 | eq    | l     | F     |          1 | 2025-04-03 05:47:11.309998-07
+                 0.92 | l       | 62079792 | eq    | l     | F     |          1 | 2025-04-03 05:38:39.02-07
+                 0.55 | l       | 62079777 | eq    | l     | F     |          1 | 2025-04-03 04:19:52.289999-07
+                 0.54 | l       | 62079757 | eq    | l     | F     |          1 | 2025-04-02 20:18:10.529999-07
+
+```
+
+Example output file: 62063646_output.txt
 
 ```
 ORDATE START END: 62063646 2024-12-02 17:43:27.330000 2024-12-02T17:42:57.330000Z 2024-12-02T17:45:18.330000Z
@@ -65,6 +81,8 @@ Probability Distance: the probability of the event class with highest probabilit
 * **Channel selection:** for stations with multiple channels, the order of preference is HH, BH, EH, HN, EN.  For 6 channel HH + EN stations, HHZ + HHN + HHN get used.  If a station is a 4 channel station (EHZ, ENZ, ENN, ENE), then the channels that get selected are EHZ + ENN + ENE.  For single channel short periods, the channels are EHZ + EHZ + EHZ since the classifier requries three components.
 
 * **Channel selection bias:** There is no explicit bias for channel types in this data set, however SU events are on volcanoes which are almost all HH and BH 3C stations with a few EHZ tossed in, while EX events often are in rural areas which results in larger distances and a disporportionate amount of strong motion stations.
+
+* **px vs ex events?:** PNSN classifies quarry blasts as event type 'px' unless it was verified to be a blast by calling the quarry in which case it becomes 'ex'.  The data set here only has 'px' events since there have only been a total of 40 'ex' events from 2012 to 2025 (versus the 3000+ px events used).
 
 * **run_all_models.py runtime**: on a modest 2019 linux box takes about 10-15 seconds to load models and download data.  Each of the DL models takes about 1 sec and the ML model takes of order 10 sec (when run across 9 time shifts).
 
