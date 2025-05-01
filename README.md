@@ -1,5 +1,4 @@
 # PNSN's version of Akash's event classifier.
-
 Akash's main repo that this is based on [https://github.com/Akashkharita/Surface_Event_Detection](https://github.com/Akashkharita/Surface_Event_Detection)
 
 # Differences between Akash's and Alex's repos
@@ -11,6 +10,10 @@ There are a few differences including:
 
 # Results
 Zip file of 10k events split evenly between EQ, EX, and SU. [event_classifier_output_files_PNSN.zip](https://seismo.ess.washington.edu/~ahutko/event_classifier_output_files_PNSN.zip)
+
+Huge AI generated script to make figures and stats (still has some issues persisting).  [make_figures_and_stats.py](https://github.com/alexhutko/Surface_Event_Detection/blob/feature/PNSN/PNSN/make_figures_and_stats.py) and the current figures it's making: [figures_and_stats.zip](https://seismo.ess.washington.edu/~ahutko/figures_and_stats.zip).
+
+Note: use hand_statistics.py and hand_statistics_output.txt to double check results.
 
 The psql queries used to for the evid lists for eq, px and su events:
 ```
