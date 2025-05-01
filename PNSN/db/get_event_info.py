@@ -50,7 +50,7 @@ def get_event_info(evid):
     netstas, distkm = [], []
     if etype != 'st':
         if prefmag is not None:
-            cursor.execute('select o.evid,  o.orid, o.datetime, o.lat, o.lon, o.depth, o.distance, o.wrms, o.algorithm, o.rflag, n.magnitude, n.magtype, n.uncertainty, n.nsta, n.magalgo from origin o inner join event e on o.evid = e.evid inner join netmag n on n.magid = e.prefmag where e.evid = (%s) order by o.datetime desc', (  evid, ) )
+            cursor.execute('select o.evid,  o.orid, o.datetime, o.lat, o.lon, o.depth, o.distance, o.wrms, o.algorithm, o.rflag, n.magnitude, n.magtype, n.nsta, n.magalgo, n.uncertainty from origin o inner join event e on o.orid = e.prefor inner join netmag n on n.magid = e.prefmag where e.evid = (%s) order by o.datetime desc', (  evid, ) )
             for record in cursor:
                 evid = record[0]
                 orid = record[1]
@@ -61,12 +61,16 @@ def get_event_info(evid):
                 mindist = record[6]
                 orms = record[7]
                 mag = record[10]
-                unc = record[11]
                 nsta = record[12]
                 magalgo = record[13]
+                unc = record[14]
+                if unc == None:
+                    unc = 0
                 algorithm = record[8]
                 if 'HYP' in algorithm:
                     analyst_class = etype
+                elif etype == 'su' and nsta == 0:
+                    analyst_class = 'su'
             #----- Get preferred magnitude
             try:
                 cursor.execute('select n.magnitude, n.magtype from netmag n inner join event e on n.magid = e.prefmag where e.evid = (%s) and e.selectflag = (%s)',(evid,1))
@@ -108,7 +112,10 @@ def get_event_info(evid):
                 if ncount <= 10 and record[0] != 'US':
                     ncount += 1
                     netstas.append( record[0] + '.' + record[1] )
-                    distkm.append(round(record[11]))
+                    record11 = record[11]
+                    if record11 == None:
+                        record11 = 0
+                    distkm.append(round(record11))
                     maxdist = record[11]
     
     #----- Subnet trigger
