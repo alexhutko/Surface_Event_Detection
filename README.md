@@ -1,125 +1,88 @@
-- [Installation](#installation)
-- [Usage](#usage)
-- [Contributing](#contributing)
-- [License](#license)
+# PNSN's version of Akash's event classifier.
 
+Akash's main repo that this is based on [https://github.com/Akashkharita/Surface_Event_Detection](https://github.com/Akashkharita/Surface_Event_Detection)
 
-# Surface Event Detection
+# Differences between Akash's and Alex's repos
+There are a few differences including:
+* how SNR is calculated- ratio of 98th percentile abs(amplitude) in noise and signal window.
+* run_all_models.py is a script that runs 4 DL models and 1 ML model (40sec) given an evid. It fetches data from the 10 stations with the earliest pick times regardless of if they are P or S picks, i.e. the closest stations with picks.
+* special treatment is given for SU events that have only one station picked and no location.  The event location is assumed to be the station location.  An empirical volcano-specific station list based on stations with the most historical SU picks is used to form the list of 10 stations.
+* output are files look like:
 
-This repository contains notebooks that show how to use my trained ML model to detect surface events (Avalanches/Rockfalls/Debris Flows) through continuous seismograms from multiple stations. 
-The model was trained on over 200k seismic events in the Pacific northwest. [Ni et al. 2023](https://seismica.library.mcgill.ca/article/view/368/868). 
-For more information about the model training and tuning, please check out this [github repository](https://github.com/Akashkharita/PNW_seismic_event_classification_ML/tree/main)
-The model classifies a 150s window with a user-defined stride and outputs a class and probabilities associated with each class for each window. It is trained to classify the data into four classes - 1. Earthquake, 2. Explosions, 3. Noise and 4. Surface Events. 
+# Results
+Zip file of 10k events split evenly between EQ, EX, and SU. [event_classifier_output_files_PNSN.zip](https://seismo.ess.washington.edu/~ahutko/event_classifier_output_files_PNSN.zip)
 
-
-Following figure shows different glaciers in Mount Rainier that hosts a variety of surface events on which our model was trained. 
-
-![Glaciers in Mount Rainier](Extras/Mt_Rainier_Glaciers.png)
-
-
-## Installation
-
-Instructions on how to install...
-
-If we are running this on the cloud we will look at the instructions in this book to understand how to run this notebook on a cloud - [HPSBook](https://seisscoped.org/HPS-book/chapters/cloud/AWS_101.html).
-
-Once we are in a instance we will run this code - 
-
+The psql queries used to for the evid lists for eq, px and su events:
 ```
-sudo yum install -y git
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-chmod +x Miniconda3-latest-Linux-x86_64.sh 
-./Miniconda3-latest-Linux-x86_64.sh -b -p $HOME/miniconda
-./miniconda/bin/conda init bash
-bash
-```
-
-And then we are going to run - 
-```
-sudo yum groupinstall "Development Tools"
-```
-
-
-Following instructions can be followed on your local system as well as on the cloud (after following the instructions above)
-
-
-First we will clone the repository by going to the terminal and typing
-
-```
-git clone https://github.com/Akashkharita/Surface_Event_Detection.git
+select n.magnitude, n.magtype, e.evid, e.etype, o.gtype, o.rflag, e.selectflag, to_timestamp(o.datetime) from event e inner join origin o on e.prefor = o.orid inner join netmag n on e.prefmag = n.magid inne
+r join credit c on c.id = o.orid  where o.gtype = 'l' and e.selectflag = 1 and c.tname = 'ORIGIN' and c.refer = 'amyw' and e.etype in ('eq') and o.rflag = 'F' order by o.datetime desc limit 3333;
+      magnitude       | magtype |   evid   | etype | gtype | rflag | selectflag |         to_timestamp          
+----------------------+---------+----------+-------+-------+-------+------------+-------------------------------
+                  0.8 | l       | 62079802 | eq    | l     | F     |          1 | 2025-04-03 05:47:11.309998-07
+                 0.92 | l       | 62079792 | eq    | l     | F     |          1 | 2025-04-03 05:38:39.02-07
+                 0.55 | l       | 62079777 | eq    | l     | F     |          1 | 2025-04-03 04:19:52.289999-07
+                 0.54 | l       | 62079757 | eq    | l     | F     |          1 | 2025-04-02 20:18:10.529999-07
 
 ```
 
-
-Then we will enter the repository by
-
-```
-cd Surface_Event_Detection
-```
-
-
-Second, let's setup a conda environment using the following command. 
+Example output file: 62063646_output.txt
 
 ```
-conda create -n surface python=3.9.5
+ORDATE START END: 62063646 2024-12-02 17:43:27.330000 2024-12-02T17:42:57.330000Z 2024-12-02T17:45:18.330000Z
+PROBS: 62063646 SeismicCNN_1d    0 0.9026700 0.3833518 0.7905207 0.9897208  109.18  [['CC.CPCO..BHE', 'CC.CPCO..BHN', 'CC.CPCO..BHZ']] 
+PROBS: 62063646 SeismicCNN_1d    1 0.3968616 0.4153720 0.6015000 0.9851815   22.93  [['CC.NORM..BHE', 'CC.NORM..BHN', 'CC.NORM..BHZ']] 
+PROBS: 62063646 SeismicCNN_1d    2 0.3564669 0.7930581 0.4278859 0.9963425   13.41  [['CC.CIHL..BHE', 'CC.CIHL..BHN', 'CC.CIHL..BHZ']] 
+62063646   SeismicCNN_1d_mean_all              EQ: 0.552  3    EX: 0.531  3    SU: 0.990  3      ProbDist: 0.438    Pred: SU  0.990  3    Analyst: su  Mag: Md2.2
+62063646   SeismicCNN_1d_p0.30_d0.00_snr00     EQ: 0.552  3    EX: 0.531  3    SU: 0.990  3      ProbDist: 0.438    Pred: SU  0.990  3    Analyst: su  Mag: Md2.2
+62063646   SeismicCNN_1d_p0.30_d0.00_snr01     EQ: 0.552  3    EX: 0.531  3    SU: 0.990  3      ProbDist: 0.438    Pred: SU  0.990  3    Analyst: su  Mag: Md2.2
+62063646   SeismicCNN_1d_p0.30_d0.00_snr02     EQ: 0.552  3    EX: 0.531  3    SU: 0.990  3      ProbDist: 0.438    Pred: SU  0.990  3    Analyst: su  Mag: Md2.2
+62063646   SeismicCNN_1d_p0.30_d0.00_snr03     EQ: 0.552  3    EX: 0.531  3    SU: 0.990  3      ProbDist: 0.438    Pred: SU  0.990  3    Analyst: su  Mag: Md2.2
+62063646   SeismicCNN_1d_p0.30_d0.00_snr04     EQ: 0.552  3    EX: 0.531  3    SU: 0.990  3      ProbDist: 0.438    Pred: SU  0.990  3    Analyst: su  Mag: Md2.2
+62063646   SeismicCNN_1d_p0.30_d0.00_snr10     EQ: 0.552  3    EX: 0.531  3    SU: 0.990  3      ProbDist: 0.438    Pred: SU  0.990  3    Analyst: su  Mag: Md2.2
+etc
+PROBS: 62063646 SeismicCNN_2d    0 0.0931419 0.1001849 0.1111061 0.9978759  109.18  [['CC.CPCO..BHE', 'CC.CPCO..BHN', 'CC.CPCO..BHZ']] 
+PROBS: 62063646 SeismicCNN_2d    1 0.0010403 0.0135124 0.1175617 0.9998946   22.93  [['CC.NORM..BHE', 'CC.NORM..BHN', 'CC.NORM..BHZ']] 
+PROBS: 62063646 SeismicCNN_2d    2 0.0091292 0.1496502 0.2605225 0.9944595   13.41  [['CC.CIHL..BHE', 'CC.CIHL..BHN', 'CC.CIHL..BHZ']] 
+62063646   SeismicCNN_2d_mean_all              EQ: 0.034  3    EX: 0.088  3    SU: 0.997  3      ProbDist: 0.910    Pred: SU  0.997  3    Analyst: su  Mag: Md2.2
+62063646   SeismicCNN_2d_p0.30_d0.00_snr00     EQ: 0.000  0    EX: 0.000  0    SU: 0.997  3      ProbDist: 0.997    Pred: SU  0.997  3    Analyst: su  Mag: Md2.2
+62063646   SeismicCNN_2d_p0.30_d0.00_snr01     EQ: 0.000  0    EX: 0.000  0    SU: 0.997  3      ProbDist: 0.997    Pred: SU  0.997  3    Analyst: su  Mag: Md2.2
+62063646   SeismicCNN_2d_p0.30_d0.00_snr02     EQ: 0.000  0    EX: 0.000  0    SU: 0.997  3      ProbDist: 0.997    Pred: SU  0.997  3    Analyst: su  Mag: Md2.2
+62063646   SeismicCNN_2d_p0.30_d0.00_snr03     EQ: 0.000  0    EX: 0.000  0    SU: 0.997  3      ProbDist: 0.997    Pred: SU  0.997  3    Analyst: su  Mag: Md2.2
+62063646   SeismicCNN_2d_p0.30_d0.00_snr04     EQ: 0.000  0    EX: 0.000  0    SU: 0.997  3      ProbDist: 0.997    Pred: SU  0.997  3    Analyst: su  Mag: Md2.2
+62063646   SeismicCNN_2d_p0.30_d0.00_snr10     EQ: 0.000  0    EX: 0.000  0    SU: 0.997  3      ProbDist: 0.997    Pred: SU  0.997  3    Analyst: su  Mag: Md2.2
+62063646   SeismicCNN_2d_p0.30_d0.02_snr00     EQ: 0.000  0    EX: 0.000  0    SU: 0.997  3      ProbDist: 0.997    Pred: SU  0.997  3    Analyst: su  Mag: Md2.2
+etc
 ```
 
-Activate the environment
+**Columns:**
+```ORDATE START END: 62063646 2024-12-02 17:43:27.330000 2024-12-02T17:42:57.330000Z 2024-12-02T17:45:18.330000Z```
+evid, origin time, start_time, end_time.
 
-```
+```PROBS: 62063646 SeismicCNN_1d    0 0.9026700 0.3833518 0.7905207 0.9897208  109.18  [['CC.CPCO..BHE', 'CC.CPCO..BHN', 'CC.CPCO..BHZ']]```
 
-conda activate surface
-```
+evid, model name, station index, EQ probability, EX probability, NOise probability, SU probability, SNR, NSLCs used.
 
-Then we will install the required dependencies 
-```
-pip install -r requirements.txt
-```
-Then we will install the jupyter notebook by running 
+```62063646   SeismicCNN_2d_p0.30_d0.00_snr04     EQ: 0.000  0    EX: 0.000  0    SU: 0.997  3      ProbDist: 0.997    Pred: SU  0.997  3    Analyst: su  Mag: Md2.2```
 
-```
-pip install jupyter
-```
+evid, model_parameter_set, max probability for each of the 3 event classes, probability distance, the event-level prediction and it's probability, N traces used, Analyst label, Catalog magnitude.
+
+*model_parameter_set*: this dictates which traces get to vote on the event-level classification for that set = min probablity threshold, min probability distance threshold, SNR.  SNR is ratio of preP to postP using the 98th percentile abs(amplitude).  Probaility thresholds: [0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97, 0.98, 0.99], probability distance thresholds: [0.0, 0.02, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5], SNR thresholds: [0, 1, 2, 3, 4, 10].  So 672 combinations were tested plus the simple mean of all stations which for the best performing models, was either the best performer or very close.
 
 
+Probability Distance: the probability of the event class with highest probability minus that of the second place event class.
 
-Then we will add the conda environment to jupyter hub 
-```
-conda install ipykernel
-```
-```
-python -m ipykernel install --user --name=surface
-```
+# Notes
+* **Pick time used for each trace:** This analysis does not use the actual pick time, rather it uses the estimated arrival time based on distance from origin to station and assumes a Vp of 6km/sec.  This is sufficent since the models were trained with some wiggling around the pick time applied (from -20 to +5 seconds).
 
+* **Time windows:** the deep learning models (QuakeXNet 1d/2d and SeismicCNN 1d/2d) use a 100 second long time window for analysis.  The classic ML model, ML40s, uses a 40 second long window.  Each trace is assessed at multiple time shifts around the P wave from 30s before to 10s after with strides/shifts of 5s.  The assigned probability for a given event class is the maximum across any of those 9 windows.
 
-Now we are all set to go! 😃
+* **Stations selected:** for all EQ and EX events, and SU events with a proper source location (n=187), the 10 stations with the earliest picks were selected, regardless of if it was a P or S pick.  For the vast majority of SU events, there is only one station picked and the location is assumed to be at that location.  For these events, a separate function (get_volcano_stations.py) is used to form an empirical list of up to 10 NET.STAs based on those stations nearest the summit, when the station came online, and which have the most historical picks is used.
 
+* **Channel selection:** for stations with multiple channels, the order of preference is HH, BH, EH, HN, EN.  For 6 channel HH + EN stations, HHZ + HHN + HHN get used.  If a station is a 4 channel station (EHZ, ENZ, ENN, ENE), then the channels that get selected are EHZ + ENN + ENE.  For single channel short periods, the channels are EHZ + EHZ + EHZ since the classifier requries three components.
 
-If you are on cloud run this - 
+* **Channel selection bias:** There is no explicit bias for channel types in this data set, however SU events are on volcanoes which are almost all HH and BH 3C stations with a few EHZ tossed in, while EX events often are in rural areas which results in larger distances and a disporportionate amount of strong motion stations.
 
-```
-jupyter notebook --ip 0.0.0.0 --allow-root
-```
+* **px vs ex events?:** PNSN classifies quarry blasts as event type 'px' unless it was verified to be a blast by calling the quarry in which case it becomes 'ex'.  The data set here only has 'px' events since there have only been a total of 40 'ex' events from 2012 to 2025 (versus the 3000+ px events used).
 
-If you are on local machine, just run this - 
+* **run_all_models.py runtime**: on a modest 2019 linux box takes about 10-15 seconds to load models and download data.  Each of the DL models takes about 1 sec and the ML model takes of order 10 sec (when run across 9 time shifts).
 
-```
-jupyter notebook
-```
-
-
-
-## Usage
-The [notebook](Notebooks/Automated_Surface_Event_Detection.ipynb) shows an example of how to detect surface events through continuous seismograms and visualize the results with detailed documentation. I showed the entire process by using three examples of verified surface events (one example each of avalanche, fall and flows). The users are free to run the model on the timing and stations of their choice. 
-
-The notebook **analyzing_results_of_all_models_on_jiggled_events** is comaparing the station wise and event wise performance of different models at a variety of thresholds, computing confusion matrices, and plotting the misclassification rate with respect to distance and snr. 
-
-The notebook **classification_demo_earthquake_all_models** and **classification_demo_surface_events_all_models**  shows the demo of how to compute and plot the classification results of all (deep learning and machine learning models)
-
-
-## Contributing
-Anyone is welcome to contribute to improve the codes and visualization of the results. I am available at my email  - ak287@uw.edu for further collaboration. 
-
-## License
-
-The repository has an MIT License. 
