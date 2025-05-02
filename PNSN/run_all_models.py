@@ -24,10 +24,10 @@ Models used:
 - ML40sec: Traditional machine learning model using 40-second windows
 
 Usage:
-    python script_name.py evid
+    python run_all_models.py evid
 
     where:
-        evid: Valid integer event ID in the database
+        evid: Valid integer event ID in the database, e.g. 61886506
 
 Output:
     - Console output of processing status and probabilities
@@ -55,7 +55,7 @@ except IndexError:
     sys.exit(1)
 
 # Output file configuration and quick check
-results_dir = "RESULTS_SU2"
+results_dir = "RESULTS_M4"
 os.makedirs(results_dir, exist_ok=True)  # Ensure the output directory exists
 outfile = os.path.join(results_dir, f"{evid}_output.txt")
 if os.path.exists(outfile):
@@ -117,8 +117,8 @@ from obspy.clients.fdsn import Client
 client = Client('IRIS')
 
 # import event classifier specific packges
-from db.get_event_info2 import unix_to_true_time
-from db.get_event_info2 import get_event_info
+from db.get_event_info import unix_to_true_time
+from db.get_event_info import get_event_info
 
 # Import classification functions
 from all_models_classification import (
