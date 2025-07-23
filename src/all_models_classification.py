@@ -387,8 +387,8 @@ def extract_snr_alex(tr0, offset):
         sr = 100
         tr.filter('bandpass', freqmin = 1, freqmax = 20)
         tr.resample(sr)
-        i1 = int(sr*10)
-        i2 = max(int((offset-10)*sr),i1+1)
+        i1 = 1
+        i2 = max(int((offset-5)*sr),i1+1)
         i3 = min(int((offset-5)*sr),tr.stats.npts-2)
         i4 = min(int((offset+20)*sr),tr.stats.npts)
         noise = np.percentile(np.abs(tr.data[i1:i2]), 98)
@@ -441,7 +441,7 @@ def compute_window_probs(
     big_station_wise_probs, big_reshaped_data, big_station_ids, snrs = [], [], [], []
     signal_length = end_time - start_time
     #offset = window_length + (stride/orig_sr)
-    offset = 20. + (window_length/2.) + (stride/orig_sr)
+    offset = 30. # from run_all_models.py:  start_time = UTCDateTime(ordate) - 30.  # 30 sec before P is the first analysis window
 
     # If we are not retaining previously downloaded data, start fresh.
     if not remember_st or not (isinstance(st_all, Stream) and len(st_all) > 0):
@@ -539,7 +539,7 @@ def compute_window_probs(
         big_station_wise_probs.append(station_wise_probs)
         big_reshaped_data.append(reshaped_data)
         big_station_ids.append(station_ids)
-    
+
     return big_station_wise_probs, big_reshaped_data, big_station_ids, st_all, snrs
 
 
